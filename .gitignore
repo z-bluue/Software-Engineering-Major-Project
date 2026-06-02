@@ -22,3 +22,6 @@ index_store_hnsw/
 # OS
 .DS_Store
 Thumbs.db
+
+# 原始数据
+成员B文件/data/liver.h5ad
