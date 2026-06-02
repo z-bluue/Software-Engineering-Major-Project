@@ -27,7 +27,7 @@ Software-Engineering-Major-Project-main/
 │   │   ├── processed_cell_vectors.npy — 新算 PCA 向量
 │   │   └── liver.h5ad           — 原始数据
 │   ├── 说明.md                  — 对接说明文档
-│   └── 数据说明.md              — 数据字段说明
+│   └── 原始数据说明.md              — 原始数据字段说明
 └── README.md
 ```
 
