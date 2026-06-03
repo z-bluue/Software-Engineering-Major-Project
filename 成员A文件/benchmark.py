@@ -14,7 +14,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent))
 from index_builder import IndexManager, _brute_search, _calc_recall
 
-VECTORS_PATH = "../成员B文件/cell_vectors.npy"
+VECTORS_PATH = "../成员B文件/data/cell_vectors.npy"
 if not Path(VECTORS_PATH).exists():
     VECTORS_PATH = "cell_vectors.npy"
 

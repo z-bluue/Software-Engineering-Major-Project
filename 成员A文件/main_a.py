@@ -15,7 +15,7 @@ from index_builder import IndexManager, compare_index_methods
 # ========================
 # 路径配置（根据实际路径修改）
 # ========================
-VECTORS_PATH = "../成员B文件/cell_vectors.npy"   # 成员B提供的向量文件
+VECTORS_PATH = "../成员B文件/data/cell_vectors.npy"   # 成员B提供的向量文件
 INDEX_DIR    = "index_store"                      # 索引保存目录
 
 

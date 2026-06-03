@@ -12,7 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 # ===== 路径配置（按你的实际路径自动适配）=====
-VECTORS_PATH = "../成员B文件/cell_vectors.npy"
+VECTORS_PATH = "../成员B文件/data/cell_vectors.npy"
 
 # ---------- 工具函数 ----------
 def sep(title=""):

@@ -639,7 +639,7 @@ if __name__ == "__main__":
     print("=" * 70)
 
     if not Path(VECTORS_PATH).exists():
-        alt_path = "../成员B文件/cell_vectors.npy"
+        alt_path = "../成员B文件/data/cell_vectors.npy"
         if Path(alt_path).exists():
             VECTORS_PATH = alt_path
             print(f"[提示] 使用成员B目录的向量: {VECTORS_PATH}")
