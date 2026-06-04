@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>单细胞 ANN 检索系统 - 可视化与检索</title>
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <!-- Element Plus -->
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
+    <script src="https://unpkg.com/element-plus/dist/index.full.min.js"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+    <!-- ECharts -->
+    <script src="https://unpkg.com/echarts/dist/echarts.min.js"></script>
+    <!-- Axios -->
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <!-- PapaParse (For CSV parsing) -->
+    <script src="https://unpkg.com/papaparse/papaparse.min.js"></script>
+    
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app" v-cloak>
+        <el-container class="layout-container">
+            <el-header>
+                <h2>🔬 单细胞近似最近邻（ANN）检索系统</h2>
+                <div class="header-status">
+                    <span v-if="apiStatus === 'online'"><el-tag type="success">Backend Online</el-tag></span>
+                    <span v-else><el-tag type="danger">Backend Offline</el-tag></span>
+                    <span style="margin-left: 10px;" v-if="datasetInfo.cell_count">
+                        <el-tag type="info">数据集装载：{{ datasetInfo.cell_count }} 细胞</el-tag>
+                    </span>
+                </div>
+            </el-header>
+            
+            <el-container style="height: calc(100vh - 60px); overflow: hidden;">
+                <el-aside width="380px" class="control-panel" style="display: flex; flex-direction: column; overflow: hidden; padding: 15px; box-sizing: border-box; height: 100%;">
+                    <div style="flex-shrink: 0;">
+                        <el-card shadow="never" class="panel-card">
+                            <template #header>
+                                <div class="card-header">
+                                    <span>检索参数设置</span>
+                                </div>
+                            </template>
+                            <el-form label-position="top" size="Default" style="margin-bottom: -15px;">
+                                <el-form-item label="图例分类" style="margin-bottom: 10px;">
+                                    <el-select v-model="colorBy" style="width: 100%;" @change="changeColorBy">
+                                        <el-option label="细胞类型 (cell_type)" value="cell_type"></el-option>
+                                        <el-option label="疾病状态 (disease)" value="disease"></el-option>
+                                        <el-option label="年龄阶段 (AgeGroup)" value="AgeGroup"></el-option>
+                                    </el-select>
+                                </el-form-item>
+                                
+                                <el-form-item label="目标细胞 Index (0 - 69031)" style="margin-bottom: 10px;">
+                                    <el-input-number v-model="queryForm.cell_index" :min="0" :max="69031" style="width: 100%;"></el-input-number>
+                                </el-form-item>
+                                
+                                <el-form-item label="Top-K 返回数量" style="margin-bottom: 0px;">
+                                    <el-slider v-model="queryForm.top_k" :min="1" :max="100" show-input></el-slider>
+                                </el-form-item>
+                                
+                                <el-form-item label="距离度量 & 属性过滤" style="margin-bottom: 10px;">
+                                    <div style="display: flex; gap: 10px; width: 100%;">
+                                        <el-select v-model="queryForm.metric" style="width: 40%;">
+                                            <el-option label="Cosine" value="cosine"></el-option>
+                                            <el-option label="L2" value="l2"></el-option>
+                                        </el-select>
+                                        <el-select v-model="queryForm.filter_field" placeholder="过滤字段" clearable @change="fetchFieldValues" style="flex: 1;">
+                                            <el-option label="类型" value="cell_type"></el-option>
+                                            <el-option label="疾病" value="disease"></el-option>
+                                            <el-option label="年龄" value="AgeGroup"></el-option>
+                                        </el-select>
+                                        <el-select v-model="queryForm.filter_value" placeholder="属性值" clearable :disabled="!queryForm.filter_field" style="flex: 1;">
+                                            <el-option v-for="val in currentFieldValues" :key="val" :label="val" :value="val"></el-option>
+                                        </el-select>
+                                    </div>
+                                </el-form-item>
+                                
+                                <el-form-item style="margin-bottom: 5px;">
+                                    <el-button type="primary" style="width: 100%" @click="doSearch" :loading="searching" :disabled="!dataLoaded">
+                                        <el-icon><Search /></el-icon> 立即检索
+                                    </el-button>
+                                </el-form-item>
+                            </el-form>
+                        </el-card>
+                    </div>
+
+                    <div style="flex: 1; min-height: 0; margin-top: 15px; display: flex; flex-direction: column;">
+                        <el-card shadow="never" class="panel-card" style="flex: 1; display: flex; flex-direction: column;" :body-style="{ padding: '0', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }">
+                            <template #header>
+                                <div class="card-header" style="border-bottom: none;">
+                                    <span>检索结果</span>
+                                </div>
+                            </template>
+                            <div v-if="searchResults.length === 0" class="no-data" style="padding: 20px;">暂无结果</div>
+                            <div v-else style="flex: 1; overflow: hidden; display: flex; flex-direction: column;">
+                                <el-table :data="searchResults" size="small" style="width: 100%;" height="100%">
+                                    <el-table-column prop="rank" label="#" width="45"></el-table-column>
+                                    <el-table-column prop="cell_index" label="Index" width="70"></el-table-column>
+                                    <el-table-column prop="distance" label="Distance" width="80">
+                                        <template #default="scope">
+                                            {{ scope.row.distance.toFixed(4) }}
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column prop="metadata.cell_type" label="Type"></el-table-column>
+                                </el-table>
+                            </div>
+                        </el-card>
+                    </div>
+                </el-aside>
+                
+                <el-main class="main-content" style="padding: 15px; height: 100%;">
+                    <div class="chart-container" style="position: relative;" v-loading="!dataLoaded" element-loading-text="正在加载 UMAP 坐标数据并渲染图形 (约需几秒)...">
+                        <div id="umapChart" style="width: 100%; height: 100%;"></div>
+                        <div v-show="dataLoaded" style="position: absolute; left: 20px; bottom: 30px; background: rgba(255, 255, 255, 0.8); padding: 5px 15px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); pointer-events: none; font-weight: bold; color: #333; z-index: 10; font-size: 14px; border: 1px solid #ddd;">
+                            放大倍数: {{ currentZoom }} x
+                        </div>
+                    </div>
+                </el-main>
+            </el-container>
+        </el-container>
+    </div>
+    
+    <!-- App Logic -->
+    <script src="app.js"></script>
+</body>
+</html>
