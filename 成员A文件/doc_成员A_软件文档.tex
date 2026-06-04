@@ -1,0 +1,584 @@
+\documentclass[a4paper]{article}
+
+\input{style/ch_xelatex.tex}
+\input{style/scala.tex}
+
+%代码段设置
+\lstset{numbers=left,
+basicstyle=\tiny,
+numberstyle=\tiny,
+keywordstyle=\color{blue!70},
+commentstyle=\color{red!50!green!50!blue!50},
+frame=single, rulesepcolor=\color{red!20!green!20!blue!20},
+escapeinside=``
+}
+
+\graphicspath{ {images/} }
+\usepackage{ctex}
+\usepackage{graphicx}
+\usepackage{color,framed}
+\usepackage{listings}
+\usepackage{caption}
+\usepackage{amssymb}
+\usepackage{enumerate}
+\usepackage{xcolor}
+\usepackage{bm}
+\usepackage{lastpage}
+\usepackage{fancyhdr}
+\usepackage{tabularx}
+\usepackage{geometry}
+\usepackage{minted}
+\usepackage{graphics}
+\usepackage{subfigure}
+\usepackage{float}
+\usepackage{pdfpages}
+\usepackage{pgfplots}
+\pgfplotsset{width=10cm,compat=1.9}
+\usepackage{multirow}
+\usepackage{footnote}
+\usepackage{booktabs}
+
+%-----------------------伪代码------------------
+\usepackage{algorithm}
+\usepackage{algorithmicx}
+\usepackage{algpseudocode}
+\floatname{algorithm}{Algorithm}
+\renewcommand{\algorithmicrequire}{\textbf{Input:}}
+\renewcommand{\algorithmicensure}{\textbf{Output:}}
+\usepackage{lipsum}
+\makeatletter
+\newenvironment{breakablealgorithm}
+  {% \begin{breakablealgorithm}
+  \begin{center}
+     \refstepcounter{algorithm}
+     \hrule height.8pt depth0pt \kern2pt
+     \renewcommand{\caption}[2][\relax]{
+      {\raggedright\textbf{\ALG@name~\thealgorithm} ##2\par}
+      \ifx\relax##1\relax
+         \addcontentsline{loa}{algorithm}{\protect\numberline{\thealgorithm}##2}
+      \else
+         \addcontentsline{loa}{algorithm}{\protect\numberline{\thealgorithm}##1}
+      \fi
+      \kern2pt\hrule\kern2pt
+     }
+  }{% \end{breakablealgorithm}
+     \kern2pt\hrule\relax
+  \end{center}
+  }
+\makeatother
+%------------------------代码-------------------
+\usepackage{xcolor}
+\usepackage{listings}
+\lstset{
+breaklines,
+basicstyle=\small,
+escapeinside=``,
+keywordstyle=\color{blue!70} \bfseries,
+commentstyle=\color{red!50!green!50!blue!50},
+stringstyle=\ttfamily,
+extendedchars=false,
+linewidth=\textwidth,
+numbers=left,
+numberstyle=\tiny \color{blue!50},
+frame=trbl
+rulesepcolor= \color{red!20!green!20!blue!20}
+}
+
+%-------------------------页面边距--------------
+\geometry{a4paper,left=2.3cm,right=2.3cm,top=2.7cm,bottom=2.7cm}
+%-------------------------页眉页脚--------------
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\lhead{\kaishu \leftmark}
+\rhead{\kaishu 软件工程}
+\lfoot{}
+\cfoot{\thepage}
+\rfoot{}
+\renewcommand{\headrulewidth}{0.1pt}
+\renewcommand{\footrulewidth}{0pt}
+\newcommand{\HRule}{\rule{\linewidth}{0.5mm}}
+\newcommand{\HRulegrossa}{\rule{\linewidth}{1.2mm}}
+\setlength{\textfloatsep}{10mm}
+%--------------------文档内容--------------------
+
+\begin{document}
+\renewcommand{\contentsname}{目\ 录}
+\renewcommand{\appendixname}{附录}
+\renewcommand{\appendixpagename}{附录}
+\renewcommand{\refname}{参考文献}
+\renewcommand{\figurename}{图}
+\renewcommand{\tablename}{表}
+\renewcommand{\today}{\number\year 年 \number\month 月 \number\day 日}
+
+%-------------------------封面----------------
+\begin{titlepage}
+    \begin{center}
+    \includegraphics[width=0.8\textwidth]{NKU.png}\\[1cm]
+    \vspace{20mm}
+		\textbf{\huge\textbf{\kaishu{计算机学院}}}\\[0.5cm]
+		\textbf{\huge{\kaishu{软件工程实验报告}}}\\[2.3cm]
+		\textbf{\Huge\textbf{\kaishu{单细胞高维向量数据 ANN 检索系统\\[0.3cm]索引构建模块设计文档}}}
+
+		\vspace{\fill}
+
+    \centering
+      \textsc{\LARGE \kaishu{组别\ :\ 12}}\\[0.5cm]
+      \textsc{\LARGE \kaishu{专业\ :\ 计算机科学与技术}}\\[0.5cm]
+      {\small
+      \textsc{\LARGE \kaishu{张瑞宸}}\\[0.5cm]
+      \textsc{\LARGE \kaishu{李佳泽}}\\[0.5cm]
+      \textsc{\LARGE \kaishu{李煦阳}}\\[0.5cm]
+      \textsc{\LARGE \kaishu{程伟卿}}\\[0.5cm]
+      \textsc{\LARGE \kaishu{陈华宇}}\\[0.5cm]
+      }
+    \vfill
+    {\Large \today}
+    \end{center}
+\end{titlepage}
+
+\renewcommand {\thefigure}{\thesection{}.\arabic{figure}}
+\renewcommand{\figurename}{图}
+\renewcommand{\contentsname}{目录}
+\cfoot{\thepage\ of \pageref{LastPage}}
+
+% 生成目录
+\clearpage
+\tableofcontents
+\newpage
+
+% =============================================
+\section{引言}
+% =============================================
+
+\subsection{编写目的}
+本文档为"单细胞高维向量数据近似最近邻（ANN）检索系统"的\textbf{索引构建模块}设计文档。本文档由成员A（组长）负责编写，主要涵盖项目概述与项目管理两大部分。编写本文档的主要目的在于：
+
+\begin{itemize}
+    \item \textbf{描述索引构建模块的设计与实现：} 详细说明 FAISS IVF 索引与 HNSW 索引的构建、保存、加载、检索及多数据集管理的完整实现方案。
+    \item \textbf{规范模块对外接口：} 明确索引模块向上游（成员B数据处理层）、下游（成员C后端服务层）暴露的数据格式与调用约定，消除模块间集成歧义。
+    \item \textbf{记录项目管理决策：} 包括团队分工、时间计划、贡献度分配方案与 Git 协作规范，作为团队协作的统一参照文档。
+\end{itemize}
+
+本文档的预期读者包括项目开发团队全体成员、系统测试人员、指导教师以及未来的系统维护人员。
+
+\subsection{项目背景}
+进入后基因组时代，单细胞测序技术（Single-cell Sequencing）迎来了爆发式发展。该技术能够将组织中的单个细胞分离出来，分别测量每个细胞内部的分子信息，产生高通量的"细胞 $\times$ 基因"表达矩阵。在实际科研场景中，一个典型的单细胞实验往往产生数万至上百万级别的细胞样本，经过特征提取（如 PCA、Harmony 等嵌入方法）后，每个细胞被表征为一个高维特征向量。
+
+以本项目使用的肝脏数据集（\texttt{liver.h5ad}）为例，包含 \textbf{69,032 个细胞}，经 PCA 降维后每个细胞表示为 30 维特征向量。面对如此规模的高维向量数据，传统的精确最近邻（Exact Nearest Neighbor, ENN）搜索算法（如线性扫描）在数据量增至百万级时将产生严重性能瓶颈，单次查询耗时难以接受。
+
+为此，本模块引入近似最近邻检索（Approximate Nearest Neighbor, ANN）技术——在容忍微小精度损失的前提下，通过构建特定数据结构（倒排索引 IVF、导航小世界图 HNSW），将检索时间复杂度从 $O(n)$ 降低至接近 $O(\log n)$ 级别，实现毫秒级高性能单细胞相似性检索。
+
+\subsection{术语定义}
+
+\begin{table}[H]
+\centering
+\small
+\caption{术语定义表}
+\begin{tabularx}{\linewidth}{p{3cm}X}
+\toprule
+术语 & 定义 \\
+\midrule
+ANN & Approximate Nearest Neighbor，近似最近邻搜索，以少量精度损失换取大幅度检索加速 \\
+FAISS & Facebook AI Similarity Search，Facebook 开源的大规模向量相似性搜索库 \\
+HNSW & Hierarchical Navigable Small World，基于分层图结构的高效 ANN 算法 \\
+IVF & Inverted File Index，倒排索引结构，通过聚类加速检索 \\
+PCA & Principal Component Analysis，主成分分析，用于高维数据降维 \\
+Top-K & 检索返回相似度最高的 K 个近邻结果 \\
+Recall@K & 在返回的 K 个结果中，真实近邻出现的比例，用于衡量 ANN 检索精度 \\
+nlist & FAISS IVF 索引中聚类中心数量参数 \\
+nprobe & FAISS 查询时探测的聚类数量，影响精度与速度的权衡 \\
+M & HNSW 算法中每个节点的最大双向连接数 \\
+ef\_construction & HNSW 构建时动态候选列表大小，影响图质量 \\
+ef\_search & HNSW 查询时候选列表大小，影响查询精度与速度 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% =============================================
+\section{项目概述}
+% =============================================
+
+\subsection{系统目标}
+本项目的核心目标是设计并开发一个面向单细胞高维向量数据的近似最近邻检索 Web 平台，打通从"原始数据文件"到"直观可视化分析"的完整链路。索引构建模块需实现以下关键目标：
+
+\begin{itemize}
+    \item \textbf{高性能索引构建：} 集成 FAISS IVF 与 HNSW 两种工业级 ANN 算法，支持对 60,000 量级高维特征向量进行秒级索引构建。
+    \item \textbf{持久化存储与快速加载：} 支持将构建完成的索引序列化保存至磁盘，系统重启后可在 0.01 秒内加载就绪，无需重复构建。
+    \item \textbf{多维度检索接口：} 支持 Top-K 精确控制、余弦相似度度量、数据集过滤等多种检索参数组合。
+    \item \textbf{动态数据集管理：} 支持在不重启服务的情况下动态添加、删除数据集，索引自动更新。
+    \item \textbf{标准化对外接口：} 向后端成员C暴露统一的 \texttt{IndexManager} 接口，屏蔽底层算法差异，实现模块间低耦合。
+\end{itemize}
+
+\subsection{用户特点}
+本系统的目标受众与使用者主要划分为以下两类角色：
+\begin{itemize}
+    \item \textbf{科研用户（生物信息分析师/医学研究员）：} 具备深厚的生物学背景，但可能缺乏底层算法知识。关注系统的易用性，需要简洁的检索界面、高质量的可视化输出，无需了解索引构建细节。
+    \item \textbf{系统管理员（平台运维人员）：} 具备较强的 IT 运维能力，需要管理后台数据集的导入与索引的预编译、缓存清理及平台用户权限管理。
+\end{itemize}
+
+\subsection{系统功能模块架构}
+系统按职责划分为五层模块，各模块通过标准化数据接口协同工作：
+
+\begin{table}[H]
+\centering
+\small
+\caption{系统功能模块总览}
+\begin{tabularx}{\linewidth}{p{2.5cm}p{2.5cm}X}
+\toprule
+模块层 & 负责成员 & 主要职责 \\
+\midrule
+数据处理层 & 成员 B & 单细胞数据读取与校验、QC 过滤、标准化、PCA 降维、暴力检索引擎 \\
+\textbf{索引管理层} & \textbf{成员 A（本文档）} & \textbf{FAISS IVF/HNSW 索引构建、持久化、加载、多数据集动态管理} \\
+后端服务层 & 成员 C & Flask RESTful API、用户认证与管理、数据集接口 \\
+前端展示层 & 成员 D & 查询 Web 界面、UMAP 可视化交互 \\
+测试部署层 & 成员 E & 功能测试、性能评测、Docker 容器化部署 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{技术选型}
+
+\begin{table}[H]
+\centering
+\small
+\caption{索引构建模块技术选型}
+\begin{tabularx}{\linewidth}{p{2.8cm}p{3cm}X}
+\toprule
+模块/场景 & 技术选型 & 选型理由 \\
+\midrule
+ANN 索引（精度优先） & FAISS IVF（Facebook AI） & 召回率接近 100\%，构建速度快（0.06s / 69K），工业级稳定性，CPU/GPU 双支持 \\
+ANN 索引（速度优先） & HNSW（hnswlib） & 查询速度最快（$\approx$0.2ms），图结构天然支持增量插入，适合实时场景 \\
+向量数据格式 & NumPy .npy & 读取速度快，内存映射友好，与 Python 生态无缝对接 \\
+索引元信息存储 & JSON 文件 & 轻量、可读，便于调试与版本管理 \\
+开发语言 & Python 3.8+ & 与数据处理层（Scanpy/NumPy）技术栈统一，降低集成成本 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{数据集说明}
+本项目使用肝脏单细胞转录组数据集（\texttt{liver.h5ad}）作为主要测试数据集，关键属性如下：
+
+\begin{table}[H]
+\centering
+\small
+\caption{主数据集基本属性}
+\begin{tabularx}{\linewidth}{p{3cm}X}
+\toprule
+属性 & 值 \\
+\midrule
+数据集名称 & liver.h5ad（肝脏单细胞转录组数据） \\
+细胞总数 & 69,032 \\
+基因总数 & 32,397 \\
+细胞类型 & 19 种（肝细胞、内皮细胞、T 细胞等） \\
+向量维度 & 30 维（自带 PCA 嵌入） \\
+文件格式 & AnnData .h5ad \\
+关键元数据字段 & cell\_type, disease, AgeGroup, sex, donor\_age \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% =============================================
+\section{索引构建模块详细设计}
+% =============================================
+
+\subsection{模块概述}
+索引构建模块（\texttt{IndexManager}）是系统的核心算力组件，负责将成员B输出的细胞特征向量矩阵转化为可供高速检索的 ANN 索引结构，并向成员C的后端服务层提供统一的查询接口。模块的核心类为 \texttt{IndexManager}，封装了所有索引操作细节。
+
+\subsection{输入/输出规范}
+
+\subsubsection{输入数据规范}
+模块接收来自成员B数据处理层的标准化向量文件：
+
+\begin{itemize}
+    \item \textbf{主向量文件}：\texttt{cell\_vectors.npy}，NumPy 二进制格式
+    \begin{itemize}
+        \item 数据形状：\texttt{(n\_cells, n\_dims)}，当前数据集为 $(69032, 30)$
+        \item 数据类型：\texttt{float32}
+        \item 归一化：L2 归一化已完成（由成员B处理），使内积等价于余弦相似度
+    \end{itemize}
+    \item \textbf{元数据文件}：\texttt{cell\_metadata.csv}，包含 \texttt{cell\_type}、\texttt{disease} 等字段，行号与向量矩阵行号一一对应
+\end{itemize}
+
+\subsubsection{输出数据规范}
+模块向成员C后端服务层提供以下接口输出：
+
+\begin{table}[H]
+\centering
+\small
+\caption{IndexManager 对外接口列表}
+\begin{tabularx}{\linewidth}{p{4cm}p{2.5cm}X}
+\toprule
+方法签名 & 返回类型 & 说明 \\
+\midrule
+\texttt{build(method)} & \texttt{IndexInfo} & 构建索引，method 可选 "faiss\_ivf" 或 "hnsw" \\
+\texttt{save(dir\_path)} & \texttt{None} & 序列化索引至磁盘 \\
+\texttt{load(dir\_path)} & \texttt{None} & 从磁盘反序列化加载索引 \\
+\texttt{search(query, k)} & \texttt{(distances, indices)} & 执行 Top-K 检索，返回相似度与细胞索引 \\
+\texttt{status()} & \texttt{dict} & 返回索引状态 JSON，供 API 接口使用 \\
+\texttt{add\_dataset(id, path)} & \texttt{None} & 动态添加数据集并重建索引 \\
+\texttt{remove\_dataset(id)} & \texttt{None} & 动态删除数据集并重建索引 \\
+\texttt{list\_datasets()} & \texttt{list} & 列出所有已注册数据集及向量偏移范围 \\
+\texttt{set\_nprobe(n)} & \texttt{None} & 动态调整 FAISS IVF 检索精度参数 \\
+\texttt{set\_ef\_search(ef)} & \texttt{None} & 动态调整 HNSW 检索速度参数 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{索引算法设计}
+
+\subsubsection{FAISS IVF 索引}
+FAISS IVF（Inverted File Index）索引通过对向量空间进行 K-Means 聚类，将向量分配到最近的聚类中心（Voronoi 单元）。查询时仅搜索最近的若干聚类中心所属的向量子集，从而大幅减少计算量。
+
+\textbf{算法流程：}
+\begin{enumerate}
+    \item \textbf{训练阶段}：对全量向量执行 K-Means 聚类，得到 $nlist$ 个聚类中心；
+    \item \textbf{构建阶段}：将每个向量分配到最近的聚类中心，建立倒排列表；
+    \item \textbf{查询阶段}：计算查询向量与所有聚类中心的距离，选取最近的 $nprobe$ 个聚类，在其倒排列表内精确搜索。
+\end{enumerate}
+
+\textbf{关键参数：}
+\begin{itemize}
+    \item \texttt{nlist}：聚类中心数量，默认 100。增大可提升精度但增加内存。推荐设置为 $4\sqrt{n}$；
+    \item \texttt{nprobe}：查询时探测的聚类数，默认 10。增大提升召回率，减小提升速度；
+    \item 距离度量：内积（Inner Product），配合 L2 归一化实现余弦相似度。
+\end{itemize}
+
+\textbf{适用场景：} 召回率要求高（$\geq 99\%$）、数据集规模中大型（10万\textasciitilde1000万），推荐用于生产环境。
+
+\subsubsection{HNSW 索引}
+HNSW（Hierarchical Navigable Small World）索引基于分层图结构，每层图满足导航小世界属性，从顶层稀疏图到底层稠密图逐层细化，贪心遍历实现近似最近邻查询。
+
+\textbf{算法流程：}
+\begin{enumerate}
+    \item \textbf{构建阶段}：逐个插入向量，为每个向量随机选择层级，在对应层建立最多 $M$ 条双向连接边；
+    \item \textbf{查询阶段}：从顶层稀疏图开始贪心遍历，逐层下降至底层图，维护 $ef\_search$ 大小的候选集，最终返回 Top-K 结果。
+\end{enumerate}
+
+\textbf{关键参数：}
+\begin{itemize}
+    \item \texttt{M}：每个节点最大双向连接数，默认 16。增大提升召回率但增加内存与构建时间；
+    \item \texttt{ef\_construction}：构建时动态候选列表大小，默认 200。增大提升图质量但延长构建时间；
+    \item \texttt{ef\_search}：查询时候选列表大小，默认 100。动态可调，实时平衡精度与速度。
+\end{itemize}
+
+\textbf{适用场景：} 追求极低查询延迟（亚毫秒级）、实时增量插入场景，适合前端交互式检索。
+
+\subsection{多数据集联合索引设计}
+为支持多数据集联合检索，\texttt{IndexManager} 维护一个数据集注册表，采用\textbf{向量拼接 + 偏移量映射}方案：
+
+\begin{enumerate}
+    \item 每个数据集的向量矩阵按注册顺序拼接为统一的全局矩阵 $V_{global}$；
+    \item 维护偏移量字典 \texttt{offsets}，记录每个数据集在全局矩阵中的起始行号与结束行号；
+    \item 检索时若指定 \texttt{dataset\_filter}，则对返回的细胞索引进行偏移量过滤，仅保留目标数据集内的结果；
+    \item 添加/删除数据集后，重新拼接全局矩阵并触发索引重建（异步后台执行，不阻塞查询）。
+\end{enumerate}
+
+\subsection{性能指标（实测数据）}
+
+\begin{table}[H]
+\centering
+\small
+\caption{ANN 索引性能对比（数据集：liver.h5ad，69032 细胞 × 30 维，Top-K=10，随机 200 条查询，CPU 环境）}
+\begin{tabularx}{\linewidth}{p{3cm}p{2.2cm}p{2.5cm}p{1.8cm}p{2cm}X}
+\toprule
+方法 & 索引构建耗时 & 平均查询耗时 & Recall@10 & 内存占用 & 适用场景 \\
+\midrule
+暴力搜索（基准） & — & $\approx$1.5ms & 100\%（基准） & 低 & 精确检索对比 \\
+\textbf{FAISS IVF}（推荐） & \textbf{$\approx$0.06s} & \textbf{$\approx$0.3ms} & \textbf{$\approx$100\%} & 低 & 生产环境推荐 \\
+\textbf{HNSW} & $\approx$0.53s & \textbf{$\approx$0.2ms} & $\approx$99\% & 中 & 极低延迟场景 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% =============================================
+\section{项目管理}
+% =============================================
+
+\subsection{团队组成与分工}
+
+\begin{table}[H]
+\centering
+\small
+\caption{团队成员分工表}
+\begin{tabularx}{\linewidth}{p{3cm}p{3cm}X}
+\toprule
+成员 & 角色定位 & 具体职责 \\
+\midrule
+\textbf{成员A（张瑞宸）} & \textbf{项目管理 + ANN 索引核心} & Git 仓库管理、贡献度分配、FAISS/HNSW 索引构建与持久化、多数据集动态管理、软件文档（项目概述、项目管理章节） \\
+成员B（程伟卿） & 数据处理 + 检索引擎 & 单细胞数据读取与校验、QC 过滤、标准化、PCA 降维、暴力检索引擎、软件文档（需求分析、数据库设计章节） \\
+成员C（陈华宇） & 后端服务 + API & Flask 后端框架搭建、用户注册/登录/管理员模块、前后端 API 接口设计与联调、数据集管理、软件文档（详细设计、系统设计章节） \\
+成员D（李煦阳） & 前端 + 可视化 & Web 前端页面开发、UMAP 可视化模块、交互式查询功能、软件文档（UI 设计章节、用户手册） \\
+成员E（李佳泽） & 测试 + 部署 + 文档 & 系统功能测试、性能评测（Recall@K 等指标）、Docker 容器化部署、安装运行说明、演示视频录制 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{任务依赖关系}
+各成员的工作存在如下依赖关系，需按顺序交付关键中间产物以保证并行开发的顺利推进：
+
+\begin{enumerate}
+    \item \textbf{成员B $\rightarrow$ 成员A}：成员B需优先输出 \texttt{cell\_vectors.npy}（L2归一化的PCA向量矩阵）及 \texttt{cell\_metadata.csv}（细胞元数据），成员A方可启动索引构建。
+    \item \textbf{成员A + 成员D $\rightarrow$ 成员C}：成员A的 \texttt{IndexManager} 接口和成员D的前端页面原型均需在成员C开发 Flask API 前完成约定，三方共同确认接口规范。
+    \item \textbf{成员C $\rightarrow$ 成员E}：成员E的集成测试依赖成员C完成的后端 API 服务，部署脚本在系统功能基本稳定后进行。
+\end{enumerate}
+
+\subsection{时间计划}
+
+\begin{table}[H]
+\centering
+\small
+\caption{项目时间计划表}
+\begin{tabularx}{\linewidth}{p{2.5cm}p{3.5cm}p{3cm}X}
+\toprule
+阶段 & 交付内容 & 负责人 & 截止时间 \\
+\midrule
+\textbf{接口约定} & 确认 A↔B、A↔C 数据格式与 API 接口规范 & A、B、C & 2026-05-25 \\
+\textbf{中期开发} & 数据处理 + 向量输出 + 基础 Top-K 检索 + 索引构建 & B、A & 2026-06-01 \\
+\textbf{中期展示} & 课堂演示（5-8 分钟），展示核心检索功能 & A（主讲）+ 全员 & 2026-06-01 \& 06-08 \\
+\textbf{结项开发} & 完整系统 + 条件检索 + 可视化 + 多数据集管理 & 全员 & 2026-07-01 \\
+\textbf{测试部署} & 集成测试 + Docker 打包 + 性能评测 & E & 2026-07-08 \\
+\textbf{文档整理} & 软件文档各章节合并 + 演示视频 + README & 全员 & 2026-07-11 \\
+\textbf{最终提交} & GitHub 仓库 + 完整软件文档 + 贡献度声明 & A（组长提交） & \textbf{2026-07-12 24:00} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{模块接口约定}
+
+\subsubsection{A $\leftrightarrow$ B 接口（向量格式约定）}
+成员B向成员A提供标准化的细胞特征向量文件，格式约定如下：
+
+\begin{lstlisting}[language=Python, caption=成员B输出格式（供成员A使用）]
+# 成员B负责输出（已L2归一化）
+import numpy as np
+
+np.save("cell_vectors.npy", vectors)    # shape: (n_cells, 30), dtype=float32
+np.save("cell_ids.npy", cell_ids)       # shape: (n_cells,), dtype=str
+
+# 成员A读取方式
+mgr = IndexManager("../成员B文件/cell_vectors.npy")
+\end{lstlisting}
+
+\subsubsection{A $\leftrightarrow$ C 接口（IndexManager 调用约定）}
+成员C在 Flask 后端启动时初始化 \texttt{IndexManager}，完整调用示例如下：
+
+\begin{lstlisting}[language=Python, caption=成员C调用IndexManager的接口示例]
+from index_builder import IndexManager
+
+# Flask app 启动时初始化一次（全局单例）
+index_mgr = IndexManager("../成员B文件/cell_vectors.npy")
+index_mgr.load("../成员A文件/index_store")   # 加载预构建索引，耗时 0.01s
+
+# --- 核心检索接口 ---
+# 查询向量: np.ndarray, shape=(1, n_dims), dtype=float32
+distances, indices = index_mgr.search(query_vec, k=10)
+# distances: shape=(1, k), float32, 余弦相似度，取值范围 [0, 1]，越大越相似
+# indices:   shape=(1, k), int64，细胞全局行号，与 cell_metadata.csv 行号对应
+
+# --- 条件过滤检索（多数据集场景）---
+distances, indices = index_mgr.search(query_vec, k=10,
+                                      dataset_filter="kidney")
+
+# --- 状态查询（供 /api/index/status 接口）---
+status_dict = index_mgr.status()  # 返回 dict，可直接序列化为 JSON
+
+# --- 数据集管理接口 ---
+index_mgr.add_dataset("kidney", "../datasets/kidney_vectors.npy")
+index_mgr.remove_dataset("kidney")
+datasets = index_mgr.list_datasets()  # [{"id": "liver", "n_cells": 69032, ...}]
+\end{lstlisting}
+
+\subsection{贡献度分配方案}
+依据作业要求，组内贡献度之和为 100\%，单人贡献度不得超过规定上限。以下为建议分配方案，需经全体成员知情同意后提交：
+
+\begin{table}[H]
+\centering
+\small
+\caption{贡献度分配建议方案}
+\begin{tabularx}{\linewidth}{p{3.5cm}p{2cm}X}
+\toprule
+成员 & 建议贡献度 & 说明 \\
+\midrule
+成员A（张瑞宸） & 22\% & 核心索引模块开发 + 多数据集管理 + Git管理 + 项目协调 \\
+成员B（李佳泽） & 25\% & 数据处理全流水线 + 检索引擎（工作量最大） \\
+成员C（李煦阳） & 25\% & 后端全栈（用户系统 + API + 联调，工作量最大） \\
+成员D（程伟卿） & 16\% & 前端页面 + 可视化模块 \\
+成员E（陈华宇） & 12\% & 测试 + 性能评测 + Docker 部署 + 文档整理 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\noindent\textbf{注：} 贡献度方案需经全体成员知情同意后由组长统一提交，不得在未告知成员的情况下单方面修改。
+
+\subsection{Git 协作规范}
+
+\begin{table}[H]
+\centering
+\small
+\caption{Git 分支管理规范}
+\begin{tabularx}{\linewidth}{p{5cm}X}
+\toprule
+分支名 & 说明 \\
+\midrule
+\texttt{main} & 主分支，仅合并通过测试的 release 代码 \\
+\texttt{feature/member-a-index} & 成员A开发分支（索引构建模块） \\
+\texttt{feature/member-b-data} & 成员B开发分支（数据处理模块） \\
+\texttt{feature/member-c-backend} & 成员C开发分支（后端服务） \\
+\texttt{feature/member-d-frontend} & 成员D开发分支（前端可视化） \\
+\texttt{feature/member-e-testing} & 成员E开发分支（测试与部署） \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{提交信息规范（Conventional Commits）：}
+\begin{lstlisting}[language=bash, caption=Git提交信息格式规范]
+feat(index):    add multi-dataset joint index support
+fix(index):     fix HNSW load path bug on Windows
+docs(readme):   update installation guide
+test(perf):     add benchmark for FAISS vs HNSW
+refactor(data): extract L2 normalization to utils
+\end{lstlisting}
+
+\textbf{工作流要求：}
+\begin{enumerate}
+    \item 每位成员在自己的 \texttt{feature/member-x-xxx} 分支上独立开发；
+    \item 功能完成后创建 Pull Request（PR），由成员A（组长）审核合并；
+    \item 每位成员须保证个人分支上有可见的提交记录，贡献度将与提交记录挂钩；
+    \item 禁止直接向 \texttt{main} 分支提交代码。
+\end{enumerate}
+
+\subsection{结项提交清单}
+
+\begin{table}[H]
+\centering
+\small
+\caption{结项提交物清单}
+\begin{tabularx}{\linewidth}{p{4cm}p{3cm}p{1.8cm}X}
+\toprule
+提交项 & 负责人 & 状态 & 备注 \\
+\midrule
+系统源代码（GitHub 仓库） & A（组长管理） & 进行中 & 所有成员需有提交记录 \\
+索引构建模块（\texttt{index\_builder.py}） & A & \textbf{已完成} & 已通过本地测试 \\
+性能评测脚本（\texttt{benchmark.py}） & A & \textbf{已完成} & 可复现基准测试 \\
+软件设计文档 & 全员各章节 & 进行中 & 成员A负责本文档 \\
+演示视频（$\leq 5$ 分钟） & E & 待完成 & 结项前完成 \\
+README（安装运行说明） & E & 待完成 & 包含 Docker 启动命令 \\
+贡献度声明文件 & A（组长提交） & 待完成 & 需全员签字确认 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% =============================================
+\section{假定与约束}
+% =============================================
+
+本系统的开发与运行将遵循以下前提假设与约束条件：
+
+\begin{itemize}
+    \item \textbf{数据约束：} 系统索引构建模块假定接收的向量矩阵已由成员B完成 L2 归一化（\texttt{float32} 类型），索引模块不负责数据预处理。
+    \item \textbf{环境约束：} 系统后端假定运行于配备充足内存（$\geq 16$GB）的 Linux/Windows 服务器，支持多核 CPU 并行计算；前端页面需兼容主流现代 HTML5 浏览器（Chrome、Edge 等）。
+    \item \textbf{规模约束：} 索引构建模块当前面向 10 万量级细胞规模优化，若数据量超过 100 万，建议考虑 FAISS GPU 版本或分布式索引。
+    \item \textbf{项目周期约束：} 本系统作为软件工程大作业的核心交付物，须在规定截止日期（2026 年 7 月 12 日）前完成所有模块开发与文档提交。系统文档规范需严格遵循南开大学软件工程课程标准与 UML 制图规范。
+\end{itemize}
+
+\end{document}
