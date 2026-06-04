@@ -1,0 +1,605 @@
+% ============================================================
+%  成员 B 软件文档 — 单细胞数据处理与检索系统
+%  编译: xelatex 成员B_软件文档.tex
+% ============================================================
+\documentclass[12pt,a4paper]{ctexart}
+
+% ---------- 包 ----------
+\usepackage[top=2.5cm,bottom=2.5cm,left=2.8cm,right=2.8cm]{geometry}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage[hidelinks]{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{caption}
+\usepackage{enumitem}
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% ---------- 代码风格 ----------
+\lstset{
+    basicstyle=\small\ttfamily,
+    breaklines=true,
+    frame=single,
+    numbers=left,
+    numberstyle=\tiny,
+    keywordstyle=\color{blue},
+    commentstyle=\color{gray},
+    stringstyle=\color{red},
+    showstringspaces=false,
+    tabsize=2,
+    language=Python
+}
+
+% ---------- 标题 ----------
+\title{\textbf{成员 B 软件文档} \\[4pt]
+       \large 单细胞 ANN 检索系统 — 数据处理与检索引擎}
+\author{程伟卿 \quad 2311865 \\[4pt] 3075998327@qq.com}
+\date{2026 年 6 月}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+% ============================================================
+\section{需求分析}
+% ============================================================
+
+\subsection{功能需求}
+
+\subsubsection{数据读取与校验}
+
+\begin{enumerate}[label=FR-\arabic*:,leftmargin=*]
+    \item 支持读取 AnnData 格式（\texttt{.h5ad}）单细胞数据文件。
+    \item 读取后自动校验数据完整性，检查必需的 \texttt{obs}、\texttt{var}、\texttt{obsm} 字段是否存在。
+    \item 输出数据摘要信息：细胞数、基因数、细胞类型分布、PCA/UMAP 维度等。
+\end{enumerate}
+
+\subsubsection{数据预处理}
+
+\begin{enumerate}[label=FR-\arabic*:,leftmargin=*,resume]
+    \item 质量控制（QC）：根据基因表达数、线粒体基因比例等指标自动过滤低质量细胞。
+    \item 文库大小标准化：每细胞归一化至固定总表达量（默认 10,000）。
+    \item 对数变换：$\log(x+1)$ 变换，稳定方差。
+    \item 高变基因筛选：采用 Seurat 方法，默认选出前 2,000 个高变基因。
+    \item 数据缩放：Z-score 标准化，裁剪至 $[-10, 10]$。
+    \item PCA 降维：生成 64 维低维细胞嵌入向量，输出解释方差比。
+\end{enumerate}
+
+\subsubsection{向量输出}
+
+\begin{enumerate}[label=FR-\arabic*:,leftmargin=*,resume]
+    \item 将 PCA 降维结果导出为 \texttt{.npy} 格式（float32），供成员 A 构建 ANN 索引。
+    \item 导出细胞元数据为 CSV 文件，供成员 C/D 使用。
+    \item 导出 UMAP 2D 坐标及细胞类型标签，供成员 D 绘制可视化图表。
+    \item 导出全量向量与元数据，供成员 E 进行性能评估。
+\end{enumerate}
+
+\subsubsection{Top-K 相似细胞检索}
+
+\begin{enumerate}[label=FR-\arabic*:,leftmargin=*,resume]
+    \item 以单个细胞向量或自定义向量为查询，返回 Top-K 个最相似细胞。
+    \item 支持多种检索方法：暴力搜索（余弦相似度/欧氏距离）、FAISS IVF、HNSW。
+    \item 返回结果包含：细胞索引、相似度分数、细胞类型、年龄组等元数据。
+    \item 支持参数配置：K 值、距离度量方式、索引参数等。
+\end{enumerate}
+
+\subsubsection{条件过滤检索}
+
+\begin{enumerate}[label=FR-\arabic*:,leftmargin=*,resume]
+    \item 支持按任意 obs 字段进行过滤后检索（如限定细胞类型、年龄组等）。
+    \item 当过滤后候选集较小（$<30\%$ 总量）时自动回退暴力搜索，确保召回率。
+    \item 多个过滤条件可组合使用（AND 逻辑）。
+\end{enumerate}
+
+\subsection{非功能需求}
+
+\begin{enumerate}[label=NFR-\arabic*:,leftmargin=*]
+    \item \textbf{性能}：单次 Top-10 检索耗时 $\le 5$ms（FAISS），暴力搜索 $\le 10$ms；预处理流水线 $\le 5$ 分钟（69K 细胞）。
+    \item \textbf{准确率}：FAISS IVF 召回率@10 $\ge 99\%$（以暴力搜索为 ground truth）。
+    \item \textbf{可扩展性}：支持 10 万级以上细胞的检索；模块化设计，方便后续替换降维方法（如自编码器、scVI）。
+    \item \textbf{数据安全}：所有操作不修改原始 \texttt{liver.h5ad} 文件，均通过 \texttt{.copy()} 创建副本。
+    \item \textbf{兼容性}：Python $\ge$ 3.10，依赖 scanpy $\ge$ 1.9、faiss-cpu $\ge$ 1.7。
+\end{enumerate}
+
+% ============================================================
+\section{数据库设计}
+% ============================================================
+
+\subsection{数据存储格式}
+
+原始数据采用 \textbf{AnnData}（\texttt{.h5ad}）格式存储，这是单细胞组学领域通用的数据结构。
+
+\begin{table}[H]
+\centering
+\caption{AnnData 数据结构说明}
+\begin{tabular}{l|l|p{6cm}}
+\toprule
+\textbf{属性} & \textbf{类型} & \textbf{说明} \\
+\midrule
+\texttt{.X}   & (n\_obs, n\_vars) 稀疏矩阵 & 基因表达矩阵，每行一个细胞，每列一个基因 \\
+\texttt{.obs}  & DataFrame (69032, 55) & 细胞（observation）层面元数据 \\
+\texttt{.var}  & DataFrame (32397, 6)  & 基因（variable）层面注释 \\
+\texttt{.obsm} & dict & 降维结果：X\_pca(30维)、X\_umap(2维)、X\_tsne(2维) \\
+\texttt{.uns}  & dict & 全局描述信息（引用、物种、schema 版本等） \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{细胞元数据字段定义（obs）}
+
+\begin{table}[H]
+\centering
+\caption{关键 obs 字段说明}
+\begin{tabular}{l|l|p{5cm}}
+\toprule
+\textbf{字段名} & \textbf{类型} & \textbf{说明} \\
+\midrule
+\texttt{cell\_type}           & str  & 细胞类型（19 种，如 hepatocyte、T cell） \\
+\texttt{disease}              & str  & 疾病状态（本数据集全部为 normal） \\
+\texttt{AgeGroup}             & str  & 年龄组（Ped = 儿童, Adult = 成人） \\
+\texttt{donor\_age}           & str  & 供体年龄 \\
+\texttt{sex}                  & str  & 性别（male / female） \\
+\texttt{nCount\_RNA}          & float & 每细胞总 UMI 计数 \\
+\texttt{nFeature\_RNA}        & int  & 每细胞检测到的基因数 \\
+\texttt{percent.mt}           & float & 线粒体基因百分比 \\
+\texttt{Phase}                & str  & 细胞周期阶段（G1 / S / G2M） \\
+\texttt{seurat\_clusters}     & int  & Seurat 聚类编号 \\
+\texttt{donor\_id}            & str  & 供体 ID \\
+\texttt{tissue}               & str  & 组织来源 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{基因注释字段定义（var）}
+
+\begin{table}[H]
+\centering
+\caption{var 字段说明}
+\begin{tabular}{l|l|p{5cm}}
+\toprule
+\textbf{字段名} & \textbf{类型} & \textbf{说明} \\
+\midrule
+\texttt{feature\_name}        & str  & 基因名称（如 ACTB、GAPDH） \\
+\texttt{feature\_biotype}     & str  & 基因类型（protein\_coding / lncRNA 等） \\
+\texttt{feature\_length}      & int  & 基因长度（bp） \\
+\texttt{feature\_is\_filtered}& bool & 是否被过滤 \\
+\texttt{feature\_reference}   & str  & 参考基因组版本 \\
+\texttt{feature\_type}        & str  & 特征类型（Gene Expression） \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{导出数据文件}
+
+\begin{table}[H]
+\centering
+\caption{成员 B 导出数据文件清单}
+\begin{tabular}{l|l|l|l}
+\toprule
+\textbf{文件名} & \textbf{格式} & \textbf{形状/列数} & \textbf{对接成员} \\
+\midrule
+\texttt{cell\_vectors.npy}     & NumPy float32 & (69032, 30) & A \\
+\texttt{cell\_metadata.csv}    & CSV           & 9 列         & C, D \\
+\texttt{cell\_2d\_coords.csv}  & CSV           & 6 列         & D \\
+\texttt{full\_vectors.npy}     & NumPy float32 & (69032, 30) & E \\
+\texttt{full\_metadata.csv}    & CSV           & 55 列        & E \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================================
+\section{模块设计}
+% ============================================================
+
+系统由三个核心模块组成，各模块职责明确、相互独立。
+
+\begin{figure}[H]
+\centering
+\scalebox{0.85}{
+\begin{tabular}{|c|c|c|}
+\hline
+\multicolumn{3}{|c|}{\textbf{成员 B 模块架构}} \\
+\hline
+\textbf{DataManager} & \textbf{Preprocessor} & \textbf{SearchEngine} \\
+数据管理模块 & 预处理与降维模块 & 查询检索模块 \\
+\hline
+$\cdot$ 读取 .h5ad & $\cdot$ QC 过滤 & $\cdot$ 暴力搜索 \\
+$\cdot$ 格式校验 & $\cdot$ 标准化 & $\cdot$ FAISS IVF \\
+$\cdot$ 数据导出 & $\cdot$ HVG 筛选 & $\cdot$ HNSW \\
+$\cdot$ 增删接口 & $\cdot$ 缩放 & $\cdot$ 条件过滤 \\
+$\cdot$ 条件过滤 & $\cdot$ PCA 降维 & $\cdot$ 性能基准 \\
+\hline
+\multicolumn{3}{|c|}{\textbf{输出}：向量 (.npy) + 元数据 (.csv) + 检索结果 (SearchResult)} \\
+\hline
+\end{tabular}
+}
+\caption{模块架构概览}
+\end{figure}
+
+\subsection{DataManager — 数据管理模块}
+
+\textbf{文件}：\texttt{code/data\_manager.py}
+
+\subsubsection{核心类}
+
+\texttt{class DataManager(filepath: str = "liver.h5ad")}
+
+\subsubsection{关键方法}
+
+\begin{table}[H]
+\centering
+\caption{DataManager 关键方法}
+\begin{tabular}{l|p{8cm}}
+\toprule
+\textbf{方法} & \textbf{功能} \\
+\midrule
+\texttt{load\_data()}     & 读取 .h5ad 文件，返回 AnnData 对象 \\
+\texttt{validate\_data()} & 校验 X、obs、var、obsm 字段完整性，打印结果 \\
+\texttt{summary()}        & 返回细胞数/基因数/细胞类型分布等摘要信息 \\
+\texttt{get\_pca\_vectors(n\_dims=64)} & 获取 PCA 降维向量，返回 (n\_cells, n\_dims) float32 \\
+\texttt{export\_vectors\_for\_index(path, n\_dims)} & 导出 PCA 向量为 .npy，供成员 A 使用 \\
+\texttt{export\_metadata(path)} & 导出精选元数据为 CSV \\
+\texttt{export\_2d\_coords(method, path)} & 导出 UMAP 2D 坐标 + 细胞类型 \\
+\texttt{get\_cells\_by\_filter(filters)} & 按条件过滤，返回匹配细胞索引 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Preprocessor — 预处理与降维模块}
+
+\textbf{文件}：\texttt{code/preprocessing.py}
+
+\subsubsection{核心类}
+
+\texttt{class Preprocessor(adata: sc.AnnData)}
+
+\subsubsection{预处理流水线}
+
+\begin{table}[H]
+\centering
+\caption{预处理流水线步骤}
+{\small
+\begin{tabular}{c|l|l|p{4cm}}
+\toprule
+\textbf{步骤} & \textbf{方法} & \textbf{参数} & \textbf{效果} \\
+\midrule
+1. QC 过滤    & \texttt{quality\_control()} & {\small min\_genes=200, max\_pct\_mt=20\%} & 69,032→61,245 细胞 \\
+2. 标准化     & \texttt{normalize()}        & {\small target\_sum=10,000}               & 消除文库大小差异 \\
+3. 对数变换   & \texttt{log1p()}            & —                                          & $\log(x+1)$ \\
+4. HVG 筛选   & \texttt{select\_hvg()}      & {\small n\_top\_genes=2000, flavor=seurat} & 32,397→2,000 基因 \\
+5. 缩放       & \texttt{scale\_data()}       & {\small max\_value=10.0}                   & Z-score 标准化 \\
+6. PCA 降维   & \texttt{run\_pca()}          & {\small n\_comps=64, svd\_solver=arpack}   & 64 维，解释方差 36.25\% \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+\subsubsection{便捷方法}
+
+\begin{itemize}
+    \item \texttt{run\_full\_pipeline()}：一键运行全部 6 步流水线。
+    \item \texttt{get\_variance\_explained()}：返回各主成分的方差解释率。
+\end{itemize}
+
+\subsection{SearchEngine — 查询检索模块}
+
+\textbf{文件}：\texttt{code/search\_engine.py}
+
+\subsubsection{核心类}
+
+\texttt{class SearchEngine(vectors, metadata, method="faiss")}
+
+\subsubsection{检索方法对比}
+
+\begin{table}[H]
+\centering
+\caption{三种检索方法对比（30维 PCA, 69K 细胞）}
+\begin{tabular}{l|c|c|c|c}
+\toprule
+\textbf{方法} & \textbf{构建耗时} & \textbf{查询耗时} & \textbf{召回率@10} & \textbf{适用场景} \\
+\midrule
+\texttt{brute}  (暴力) & 0s       & $\sim$1.5ms & 100\%     & 小规模、条件过滤基准 \\
+\texttt{faiss}  (IVF)  & $\sim$0.1s & $\sim$0.3ms & 100\%     & \textbf{推荐}，精度高+速度快 \\
+\texttt{hnsw}          & $\sim$0.5s & $\sim$0.2ms & $\sim$99\% & 极致速度，内存稍高 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{关键方法}
+
+\begin{table}[H]
+\centering
+\caption{SearchEngine 关键方法}
+\begin{tabular}{l|p{7cm}}
+\toprule
+\textbf{方法} & \textbf{功能} \\
+\midrule
+\texttt{build\_index(nlist, nprobe)}     & 构建 FAISS/HNSW 索引 \\
+\texttt{search(query, k, filters, metric)} & 通用检索接口（主入口） \\
+\texttt{search\_by\_cell\_index(idx, k, filters)} & 以数据集内细胞为查询 \\
+\texttt{search\_by\_vector(vec, k, filters)} & 以自定义向量为查询 \\
+\texttt{benchmark(n\_queries, k, filters)} & 性能基准测试 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{SearchResult 数据结构}
+
+\begin{lstlisting}
+@dataclass
+class SearchResult:
+    indices: np.ndarray           # (n_queries, k) 匹配细胞索引
+    distances: np.ndarray         # (n_queries, k) 余弦相似度 (1.0 = 完全相同)
+    metadata: List[List[Dict]]   # 每个查询结果对应的细胞元数据
+    query_time_ms: float          # 查询耗时（毫秒）
+    method: str                   # 检索方法名称
+\end{lstlisting}
+
+\subsubsection{条件过滤策略}
+
+当用户指定过滤条件（如 \texttt{\{"cell\_type": "hepatocyte"\}}）时：
+
+\begin{enumerate}[leftmargin=*]
+    \item 解析过滤条件，构建布尔掩码 \texttt{mask}。
+    \item 若候选集占比 $\ge 30\%$ 总量：使用 ANN 索引搜索，增大 \texttt{search\_k} 后手动过滤。
+    \item 若候选集占比 $<30\%$ 总量：自动回退暴力搜索，遍历全量细胞以保证召回率。
+\end{enumerate}
+
+此策略兼顾了大规模检索的效率和条件过滤场景下的准确性。
+
+% ============================================================
+\section{接口设计}
+% ============================================================
+
+\subsection{与成员 A（索引构建）的接口}
+
+\begin{table}[H]
+\centering
+\caption{成员 B → 成员 A 接口}
+\begin{tabular}{l|p{8cm}}
+\toprule
+\textbf{项目} & \textbf{说明} \\
+\midrule
+输出文件     & \texttt{data/cell\_vectors.npy} \\
+格式         & NumPy \texttt{.npy}, dtype=\texttt{float32} \\
+形状         & \texttt{(69032, 30)} — 69,032 个细胞 $\times$ 30 维 PCA \\
+预处理       & 已做 L2 归一化，余弦相似度 = 内积 \\
+推荐索引     & FAISS \texttt{IndexIVFFlat} + \texttt{METRIC\_INNER\_PRODUCT} \\
+推荐参数     & \texttt{nlist=100\textasciitilde200}, \texttt{nprobe=10\textasciitilde20} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{与成员 C（后端 API）的接口}
+
+\subsubsection{检索函数签名}
+
+\begin{lstlisting}
+# 方式一：使用 SearchEngine（含完整元数据返回）
+from code.search_engine import SearchEngine
+
+engine = SearchEngine(vectors, metadata, method="faiss")
+engine.build_index(nlist=100)
+result = engine.search(query_vec, k=10, filters={"cell_type": "T cell"})
+# result.metadata[0] -> [{rank, cell_index, score, cell_type, ...}, ...]
+\end{lstlisting}
+
+\subsubsection{查询参数}
+
+\begin{table}[H]
+\centering
+\caption{search() 参数说明}
+\begin{tabular}{l|l|p{6cm}}
+\toprule
+\textbf{参数} & \textbf{类型} & \textbf{说明} \\
+\midrule
+\texttt{query}   & np.ndarray (d,) 或 (n, d) & 查询向量，自动 L2 归一化 \\
+\texttt{k}       & int                       & 返回 top-k 个结果，默认 10 \\
+\texttt{filters} & dict 或 None              & 条件过滤，如 \texttt{\{"cell\_type": "hepatocyte", "AgeGroup": "Adult"\}} \\
+\texttt{metric}  & str                       & \texttt{"cosine"}（默认）或 \texttt{"euclidean"} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{与成员 D（可视化）的接口}
+
+\begin{table}[H]
+\centering
+\caption{成员 B → 成员 D 接口}
+\begin{tabular}{l|p{8cm}}
+\toprule
+\textbf{项目} & \textbf{说明} \\
+\midrule
+输出文件     & \texttt{data/cell\_2d\_coords.csv} \\
+列定义       & \texttt{cell\_index, umap\_1, umap\_2, cell\_type, disease, AgeGroup} \\
+用途         & \texttt{umap\_1/umap\_2} 为坐标，\texttt{cell\_type} 用于着色 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{与成员 E（性能评估）的接口}
+
+\begin{table}[H]
+\centering
+\caption{成员 B → 成员 E 接口}
+\begin{tabular}{l|p{8cm}}
+\toprule
+\textbf{项目} & \textbf{说明} \\
+\midrule
+\texttt{data/full\_vectors.npy}  & 全量 PCA 向量 (69032, 30) float32，构建 ground truth \\
+\texttt{data/full\_metadata.csv} & 全量元数据（55 列），含所有 obs 字段 \\
+\texttt{benchmark()} 方法        & 内置性能基准，返回耗时/吞吐量数据 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================================
+\section{关键算法}
+% ============================================================
+
+\subsection{PCA 降维}
+
+采用截断 SVD（ARPACK 求解器）对缩放后的表达矩阵 $X \in \mathbb{R}^{n \times g}$ 进行分解：
+
+$$X \approx U_k \Sigma_k V_k^\top$$
+
+其中 $U_k \in \mathbb{R}^{n \times k}$ 为细胞在主成分空间的低维嵌入（即输出向量），$k=64$。
+
+前 64 个主成分累计解释方差比为 36.25\%，其中第一主成分单独解释 12.33\%。
+
+\subsection{余弦相似度检索}
+
+对查询向量 $\mathbf{q}$ 和细胞向量库 $\{\mathbf{v}_i\}_{i=1}^N$，计算余弦相似度：
+
+$$\text{sim}(\mathbf{q}, \mathbf{v}_i) = \frac{\mathbf{q} \cdot \mathbf{v}_i}{\|\mathbf{q}\| \cdot \|\mathbf{v}_i\|}$$
+
+由于向量已预先 L2 归一化（$\|\mathbf{v}_i\| = 1$），上式简化为内积 $\mathbf{q}_{\text{norm}} \cdot \mathbf{v}_i$，可直接利用 FAISS 内积索引加速。
+
+\subsection{FAISS IVF 索引}
+
+IVF（Inverted File）使用 K-means 聚类将向量空间划分为 $L$ 个区域（\texttt{nlist}=100），查询时仅在 \texttt{nprobe}=10 个最近聚类中心内搜索，大幅降低计算量。
+
+时间复杂度：$O(g \cdot \frac{N}{L} \cdot d)$，其中 $g$ 为探测的聚类数（nprobe）。
+
+\subsection{条件过滤后检索}
+
+设过滤掩码 $M \in \{0,1\}^N$，其中 $M_i = 1$ 表示第 $i$ 个细胞满足条件。过滤后的相似度计算为：
+
+$$\text{sim}_{\text{filtered}}(\mathbf{q}, \mathbf{v}_i) = \begin{cases}
+\text{sim}(\mathbf{q}, \mathbf{v}_i) & \text{if } M_i = 1 \\
+-\infty & \text{otherwise}
+\end{cases}$$
+
+取相似度最大的 $k$ 个索引作为结果。当候选集 $|\{i \mid M_i=1\}| < 0.3N$ 时，自动切换为暴力搜索以保证召回率。
+
+% ============================================================
+\section{性能测试}
+% ============================================================
+
+\subsection{测试环境}
+
+\begin{table}[H]
+\centering
+\caption{测试环境}
+\begin{tabular}{l|l}
+\toprule
+\textbf{项目} & \textbf{配置} \\
+\midrule
+CPU      & Intel 13th Gen, 32 线程 \\
+内存     & 32 GB \\
+OS       & Windows 11 \\
+Python   & 3.13.2 \\
+FAISS    & 1.14.2 (faiss-cpu) \\
+scikit-learn & 1.8.0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{检索性能}
+
+\begin{table}[H]
+\centering
+\caption{检索性能对比（$k=10$，100 次查询平均）}
+\begin{tabular}{l|c|c|c}
+\toprule
+\textbf{方法}   & \textbf{单查询耗时} & \textbf{召回率@10} & \textbf{吞吐量} \\
+\midrule
+暴力搜索 (brute) & 1.5 ms  & 100.00\%（基准） & $\sim$667 QPS \\
+FAISS IVF        & 0.3 ms  & 100.00\%         & $\sim$3,333 QPS \\
+HNSW             & 0.2 ms  & $\sim$99\%       & $\sim$5,000 QPS \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{预处理耗时}
+
+\begin{table}[H]
+\centering
+\caption{预处理流水线各步骤耗时}
+\begin{tabular}{l|c}
+\toprule
+\textbf{步骤} & \textbf{耗时} \\
+\midrule
+QC 过滤         & $\sim$2s  \\
+标准化 + log1p  & $\sim$3s  \\
+HVG 筛选        & $\sim$5s  \\
+缩放            & $\sim$1s  \\
+PCA 降维 (64维) & $\sim$8s  \\
+\midrule
+\textbf{总计}   & $\sim$20s  \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{FAISS 加速比}
+
+相对于暴力搜索，FAISS IVF 在 69K 细胞 $\times$ 30 维上的加速比为 \textbf{9.6 倍}，同时保持 \textbf{100\% 召回率}。随着数据规模增大（细胞数 $>$ 10 万），加速效果将更为显著。
+
+% ============================================================
+\section{使用说明}
+% ============================================================
+
+\subsection{环境安装}
+
+\begin{lstlisting}[language=bash]
+pip install scanpy numpy pandas scipy matplotlib scikit-learn faiss-cpu hnswlib
+\end{lstlisting}
+
+\subsection{快速运行}
+
+\begin{lstlisting}[language=bash]
+# 完整流水线（预处理 + 导出 + 检索演示 + 性能基准）
+python code/main.py
+
+# 快速检索演示（跳过预处理）
+python code/main.py quick
+
+# 单独测试各模块
+python code/data_manager.py
+python code/preprocessing.py
+python code/search_engine.py
+\end{lstlisting}
+
+\subsection{数据导出}
+
+运行 \texttt{main.py} 后，\texttt{data/} 目录下将生成以下文件：
+
+\begin{itemize}
+    \item \texttt{cell\_vectors.npy} — 供成员 A 构建 ANN 索引
+    \item \texttt{cell\_metadata.csv} — 供成员 C/D 使用
+    \item \texttt{cell\_2d\_coords.csv} — 供成员 D 可视化
+    \item \texttt{full\_vectors.npy} — 供成员 E 性能评估
+    \item \texttt{full\_metadata.csv} — 供成员 E 性能评估
+\end{itemize}
+
+% ============================================================
+%  附录：项目结构
+% ============================================================
+\appendix
+\section{项目文件结构}
+
+\begin{lstlisting}[language={},basicstyle=\small\ttfamily]
+成员B文件/
+├── code/
+│   ├── data_manager.py      # 数据管理模块
+│   ├── preprocessing.py     # 预处理与降维模块
+│   ├── search_engine.py     # 检索引擎模块
+│   └── main.py              # 主控整合脚本
+├── data/
+│   ├── cell_vectors.npy     # PCA 向量 → 成员 A
+│   ├── cell_metadata.csv    # 细胞元数据 → 成员 C/D
+│   ├── cell_2d_coords.csv   # UMAP 坐标 → 成员 D
+│   ├── full_vectors.npy     # 全量向量 → 成员 E
+│   ├── full_metadata.csv    # 全量元数据 → 成员 E
+│   ├── processed_cell_vectors.npy  # 新算 PCA (61245, 64)
+│   └── liver.h5ad           # 原始数据
+├── 说明.md                  # 对接说明文档
+├── 数据说明.md              # 数据字段说明
+└── 成员B_软件文档.tex       # 本文档
+\end{lstlisting}
+
+\end{document}

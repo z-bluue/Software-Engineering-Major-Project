@@ -41,6 +41,9 @@ venv.bak/
 *.index
 *.faiss
 
+成员B文件/data/liver.h5ad
+
+
 # OS
 .DS_Store
 Thumbs.db
